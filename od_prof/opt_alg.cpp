@@ -121,7 +121,36 @@ solution fib(matrix(*ff)(matrix, matrix, matrix), double a, double b, double eps
 	{
 		solution Xopt;
 		//Tu wpisz kod funkcji
+		solution::clear_calls();
+		vector<double> a_v;
+		vector<double> b_v;
+		vector<double> c_v;
+		vector<double> d_v;
+		a_v.push_back(a);
+		b_v.push_back(b);
+		
+		c_v.push_back(b - theta[k - 1] / (theta[k] * (b - a)));
+		d_v.push_back(a + b - c_v[0]);
 
+		for (int i = 0; i < k - 3; i++)
+		{
+			if (ff(c_v[i], ud1, ud2) < ff(d_v[i], ud1, ud2))
+			{
+				a_v.push_back(a_v[i]);
+				b_v.push_back(d_v[i]);
+				
+			}
+			else
+			{
+				b_v.push_back(b_v[i]);
+				a_v.push_back(c_v[i]);
+			}
+
+			c_v.push_back(b_v[i + 1] - theta[k - i - 2] / (theta[k - i - 1] * (b_v[i + 1] - a_v[i + 1])));
+			d_v.push_back(a_v[i + 1] + b_v[i + 1] - c_v[i + 1]);
+		}
+
+		Xopt.x(0) = c_v
 		return Xopt;
 	}
 	catch (string ex_info)
