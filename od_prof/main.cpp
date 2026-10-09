@@ -89,7 +89,15 @@ void lab0()
 
 void lab1()
 {
-	
+	double epsilon;												// dok�adno��
+	int Nmax;													// maksymalna liczba wywo�a� funkcji celu
+	matrix lb, ub;												// dolne oraz g�rne ograniczenie
+	solution opt;
+
+	epsilon = 1e-9;
+	Nmax = 1000;
+	lb = -100, ub = 100;
+
 }
 
 void lab2()

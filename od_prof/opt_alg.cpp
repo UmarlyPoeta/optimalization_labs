@@ -63,8 +63,8 @@ double* expansion(matrix(*ff)(matrix, matrix, matrix), double x0, double d, doub
 		solution::clear_calls();
         solution X0(x0);
         solution X1(x0 + d);
-        X0.fit_fun(ff);
-        X1.fit_fun(ff);
+        X0.fit_fun(ff, ud1, ud2);
+        X1.fit_fun(ff, ud1, ud2);
         vector<solution> x_v;
 
         x_v.push_back(X0);
@@ -78,7 +78,7 @@ double* expansion(matrix(*ff)(matrix, matrix, matrix), double x0, double d, doub
         if (X0.y < X1.y) {
             d = -d;
             X1.x(0) = X0.x(0) + d;
-            X1.fit_fun(ff);
+            X1.fit_fun(ff, ud1, ud2);
             x_v[1] = X1;
             if (X1.y(0) >= X0.y(0)) {
                 p[0] = X1.x(0);
@@ -95,8 +95,8 @@ double* expansion(matrix(*ff)(matrix, matrix, matrix), double x0, double d, doub
                 throw string("> Nmax");
             }
             x_v.push_back(x0 + pow(alpha, i) * d);
-            x_v[i + 1].fit_fun(ff);
-        } while (x_v[i].y(0) >= x_v[i + 1].y(0));
+            x_v[i + 1].fit_fun(ff, ud1, ud2);
+        } while (x_v[i].y(0) > x_v[i + 1].y(0));
 
         if (d > 0) {
             p[0] = x_v[i - 1].x(0);
@@ -122,35 +122,43 @@ solution fib(matrix(*ff)(matrix, matrix, matrix), double a, double b, double eps
 		solution Xopt;
 		//Tu wpisz kod funkcji
 		solution::clear_calls();
-		vector<double> a_v;
-		vector<double> b_v;
-		vector<double> c_v;
-		vector<double> d_v;
-		a_v.push_back(a);
-		b_v.push_back(b);
-		
-		c_v.push_back(b - theta[k - 1] / (theta[k] * (b - a)));
-		d_v.push_back(a + b - c_v[0]);
 
-		for (int i = 0; i < k - 3; i++)
+		double c;
+		double d;
+		vector<double> theta = { 1, 1 };
+		int k = 1;
+
+		while (theta[k] <= (b - a) / epsilon)
+        {
+            theta.push_back(theta[k] + theta[k - 1]);
+            ++k;
+        }
+		
+		c = b - theta[k - 1] / theta[k] * (b - a);
+		d = a + b - c;
+
+		for (int i = 0; i < k - 2; i++)
 		{
-			if (ff(c_v[i], ud1, ud2) < ff(d_v[i], ud1, ud2))
+			matrix f(2, 1);
+			f(0) = c;
+			f(1) = d;
+			Xopt.x = f;
+			Xopt.fit_fun(ff, ud1, ud2);
+			if (Xopt.y(0) < Xopt.y(1))
 			{
-				a_v.push_back(a_v[i]);
-				b_v.push_back(d_v[i]);
-				
+				b = d;
 			}
 			else
 			{
-				b_v.push_back(b_v[i]);
-				a_v.push_back(c_v[i]);
+				a = c;
 			}
 
-			c_v.push_back(b_v[i + 1] - theta[k - i - 2] / (theta[k - i - 1] * (b_v[i + 1] - a_v[i + 1])));
-			d_v.push_back(a_v[i + 1] + b_v[i + 1] - c_v[i + 1]);
+			c = b - theta[k - i - 2] / theta[k - i - 1] * (b - a);
+			d = a + b - c;
 		}
 
-		Xopt.x(0) = c_v
+		Xopt.x = c;
+		Xopt.fit_fun(ff, ud1, ud2);
 		return Xopt;
 	}
 	catch (string ex_info)
