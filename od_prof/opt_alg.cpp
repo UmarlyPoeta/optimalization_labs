@@ -170,10 +170,87 @@ solution fib(matrix(*ff)(matrix, matrix, matrix), double a, double b, double eps
 
 solution lag(matrix(*ff)(matrix, matrix, matrix), double a, double b, double epsilon, double gamma, int Nmax, matrix ud1, matrix ud2)
 {
-	try
+		try
 	{
 		solution Xopt;
 		//Tu wpisz kod funkcji
+		solution::clear_calls();
+		
+		int i = 0;
+		double c = (a+b)/2.0;
+		double d = c;
+		double d_prev = c;
+
+		solution A(a), B(b), C(c), D; 
+		A.y = A.fit_fun(ff, ud1, ud2);
+        B.y = B.fit_fun(ff, ud1, ud2);
+        C.y = C.fit_fun(ff, ud1, ud2);
+
+		double fa = m2d(A.y);
+        double fb = m2d(B.y);
+        double fc = m2d(C.y);
+        double fd = fc;
+
+		while (true)
+		{
+			double l = fa * (b * b - c * c)
+                     + fb * (c * c - a * a)
+                     + fc * (a * a - b * b);
+
+			double m = fa * (b - c)
+                     + fb * (c - a)
+                     + fc * (a - b);
+
+			if (m <= 0) throw string("m <= 0 (parabola nie ma minimum)");
+
+            d_prev = d;
+            d = 0.5 * l / m;
+
+			if (a < d && d < c)
+            {
+                D = solution(d);
+                D.y = D.fit_fun(ff, ud1, ud2);
+                fd = m2d(D.y);
+
+                if (fd < fc)
+                {
+                    b = c;  fb = fc;
+                    c = d;  fc = fd;
+                }
+                else
+                {
+                    a = d;  fa = fd;
+                }
+            }
+            else if (c < d && d < b)
+            {
+                D = solution(d);
+                D.y = D.fit_fun(ff, ud1, ud2);
+                fd = m2d(D.y);
+
+                if (fd < fc)
+                {
+                    a = c;  fa = fc;
+                    c = d;  fc = fd;
+                }
+                else
+                {
+                    b = d;  fb = fd;
+                }
+            }
+            else
+                throw string("d poza przedzialem (a, b)");
+
+            i++;
+
+            if (solution::f_calls > Nmax)
+                throw string("Przekroczono maksymalna liczbe wywolan funkcji celu");
+
+            if (b - a < epsilon || fabs(d - d_prev) < gamma)
+                break;
+
+
+		}
 
 		return Xopt;
 	}
