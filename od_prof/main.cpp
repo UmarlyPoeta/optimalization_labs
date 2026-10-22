@@ -87,6 +87,7 @@ void lab0()
 	}
 }
 
+
 static string num(double v)
 {
 	ostringstream s;
@@ -98,6 +99,10 @@ static string num(double v)
 	return t;
 }
 
+// dok�adno��
+// maksymalna liczba wywo�a� funkcji celu
+// dolne oraz g�rne ograniczenie
+
 void lab1()
 {
 	double epsilon = 1e-9, gamma = 1e-9, d = 1.0;
@@ -105,7 +110,6 @@ void lab1()
 	double lb = -100, ub = 100;
 	double alpha[3] = { 1.5, 2.0, 2.5 };
 
-	// minimum globalne z przeszukania siatki, do oceny czy metoda je znalazla
 	double xg = lb, yg = 1e9;
 	for (double x = lb; x <= ub; x += 1e-3)
 	{
@@ -114,7 +118,6 @@ void lab1()
 	}
 	cout << "Minimum globalne (siatka): x = " << xg << ", y = " << yg << endl;
 
-	// tabela 1
 	ofstream T1("lab1_tabela1.csv");
 	T1 << "alpha;x0;a;b;f_calls_ekspansja;fib_x;fib_y;fib_f_calls;fib_globalne;lag_x;lag_y;lag_f_calls;lag_globalne;lag_blad\n";
 	for (int ai = 0; ai < 3; ++ai)
@@ -154,7 +157,6 @@ void lab1()
 		}
 	T1.close();
 
-	// bez zawezania przedzialu
 	solution F = fib(ff1T, lb, ub, epsilon);
 	cout << "Fib bez ekspansji:\n" << F << endl;
 	matrix lenF = F.ud, lenL;
@@ -178,12 +180,10 @@ void lab1()
 			f << i << ";" << (i < nF ? num(lenF(i)) : "") << ";" << (i < nL ? num(lenL(i)) : "") << "\n";
 	}
 
-	// problem rzeczywisty
 	{
 		matrix Y0(3, 1);
 		Y0(0) = 5; Y0(1) = 1; Y0(2) = 20;
 
-		// kontrola modelu: dla D_A = 50 cm^2 max T_B powinno wyjsc ok. 61.2859
 		matrix* Yc = solve_ode(df1, 0, 1, 2000, Y0, matrix(50e-4));
 		double Tm = 0;
 		for (int i = 0; i < get_len(Yc[0]); ++i) Tm = max(Tm, Yc[1](i, 2));

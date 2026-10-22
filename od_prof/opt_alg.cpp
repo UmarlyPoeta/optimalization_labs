@@ -1,5 +1,4 @@
 #include"opt_alg.h"
-#include<vector>
 
 solution MC(matrix(*ff)(matrix, matrix, matrix), int N, matrix lb, matrix ub, double epsilon, int Nmax, matrix ud1, matrix ud2)
 {
@@ -59,38 +58,56 @@ double* expansion(matrix(*ff)(matrix, matrix, matrix), double x0, double d, doub
 {
 	try
 	{
+		double* p = new double[2] { 0, 0 };
+		//Tu wpisz kod funkcji
 		solution::clear_calls();
-		solution X0(x0), X1(x0 + d);
-		X0.fit_fun(ff, ud1, ud2);
-		X1.fit_fun(ff, ud1, ud2);
-		if (X0.y == X1.y)
-			return new double[2] { x0, x0 + d };
-		if (X1.y > X0.y)
-		{
-			d = -d;
-			X1 = solution(x0 + d);
-			X1.fit_fun(ff, ud1, ud2);
-			if (X1.y >= X0.y)
-				return new double[2] { m2d(X1.x), x0 - d };
-		}
-		vector<solution> X;
-		X.push_back(X0);
-		X.push_back(X1);
-		int i = 0;
-		while (true)
-		{
-			if (solution::f_calls > Nmax)
-				throw string("przekroczono maksymalna liczbe wywolan funkcji celu");
-			++i;
-			solution Xn(x0 + pow(alpha, i) * d);
-			Xn.fit_fun(ff, ud1, ud2);
-			X.push_back(Xn);
-			if (X[i].y <= X[i + 1].y)
-				break;
-		}
-		if (d > 0)
-			return new double[2] { m2d(X[i - 1].x), m2d(X[i + 1].x) };
-		return new double[2] { m2d(X[i + 1].x), m2d(X[i - 1].x) };
+        solution X0(x0);
+        solution X1(x0 + d);
+        X0.fit_fun(ff, ud1, ud2);
+        X1.fit_fun(ff, ud1, ud2);
+        vector<solution> x_v;
+
+        x_v.push_back(X0);
+        x_v.push_back(X1);
+
+        if (X0.y == X1.y) {
+            p[0] = X0.x(0);
+            p[1] = X1.x(0);
+            return p;
+        }
+        if (X0.y < X1.y) {
+            d = -d;
+            X1.x(0) = X0.x(0) + d;
+            X1.fit_fun(ff, ud1, ud2);
+            x_v[1] = X1;
+            if (X1.y(0) >= X0.y(0)) {
+                p[0] = X1.x(0);
+                p[1] = X0.x(0) - d;
+                return p;
+            }
+        }
+
+        int i = 0;
+        do
+        {
+            i++;
+            if (solution::f_calls > Nmax) {
+                throw string("> Nmax");
+            }
+            x_v.push_back(x0 + pow(alpha, i) * d);
+            x_v[i + 1].fit_fun(ff, ud1, ud2);
+        } while (x_v[i].y(0) > x_v[i + 1].y(0));
+
+        if (d > 0) {
+            p[0] = x_v[i - 1].x(0);
+            p[1] = x_v[i + 1].x(0);
+        }
+        else {
+            p[0] = x_v[i + 1].x(0);
+            p[1] = x_v[i - 1].x(0);
+        }
+
+		return p;
 	}
 	catch (string ex_info)
 	{
@@ -103,105 +120,143 @@ solution fib(matrix(*ff)(matrix, matrix, matrix), double a, double b, double eps
 	try
 	{
 		solution Xopt;
+		//Tu wpisz kod funkcji
 		solution::clear_calls();
 
-		vector<double> phi = { 1, 1 };
-		while (phi.back() <= (b - a) / epsilon)
-			phi.push_back(phi[phi.size() - 1] + phi[phi.size() - 2]);
-		int k = static_cast<int>(phi.size()) - 1;
+		double c;
+		double d;
+		vector<double> theta = { 1, 1 };
+		int k = 1;
 
-		double c = b - phi[k - 1] / phi[k] * (b - a);
-		double d = a + b - c;
-		solution C(c), D(d);
-		C.fit_fun(ff, ud1, ud2);
-		D.fit_fun(ff, ud1, ud2);
-		Xopt.ud = matrix(b - a);
+		while (theta[k] <= (b - a) / epsilon)
+        {
+            theta.push_back(theta[k] + theta[k - 1]);
+            ++k;
+        }
+		
+		c = b - theta[k - 1] / theta[k] * (b - a);
+		d = a + b - c;
+		Xopt.ud = matrix(b - a); ///tu
 
-		for (int i = 0; i <= k - 3; ++i)
+		for (int i = 0; i < k - 2; i++)
 		{
-			if (C.y < D.y)
+			matrix f(2, 1);
+			f(0) = c;
+			f(1) = d;
+			Xopt.x = f;
+			Xopt.fit_fun(ff, ud1, ud2);
+			if (Xopt.y(0) < Xopt.y(1))
 			{
-				b = d;  d = c;  D = C;
-				c = b - phi[k - i - 2] / phi[k - i - 1] * (b - a);
-				C = solution(c);
-				C.fit_fun(ff, ud1, ud2);
+				b = d;
 			}
 			else
 			{
-				a = c;  c = d;  C = D;
-				d = a + b - c;
-				D = solution(d);
-				D.fit_fun(ff, ud1, ud2);
+				a = c;
 			}
-			Xopt.ud.add_row(b - a);
+
+			c = b - theta[k - i - 2] / theta[k - i - 1] * (b - a);
+			d = a + b - c;
+			Xopt.ud.add_row(b - a); ///tu
 		}
-		Xopt.x = C.x;
-		Xopt.y = C.y;
-		Xopt.flag = 0;
+
+		Xopt.x = c;
+		Xopt.fit_fun(ff, ud1, ud2);
 		return Xopt;
 	}
 	catch (string ex_info)
 	{
 		throw ("solution fib(...):\n" + ex_info);
 	}
+
 }
 
 solution lag(matrix(*ff)(matrix, matrix, matrix), double a, double b, double epsilon, double gamma, int Nmax, matrix ud1, matrix ud2)
 {
-	try
+		try
 	{
 		solution Xopt;
+		//Tu wpisz kod funkcji
 		solution::clear_calls();
-
-		double c = (a + b) / 2.0;
-		double d = c, d_prev = c;
-		solution A(a), B(b), C(c), D(c);
-		A.fit_fun(ff, ud1, ud2);
-		B.fit_fun(ff, ud1, ud2);
-		C.fit_fun(ff, ud1, ud2);
-		double fa = m2d(A.y), fb = m2d(B.y), fc = m2d(C.y), fd = fc;
-		Xopt.ud = matrix(b - a);
+		
 		int i = 0;
+		double c = (a+b)/2.0;
+		double d = c;
+		double d_prev = c;
+
+		solution A(a), B(b), C(c), D; 
+		A.y = A.fit_fun(ff, ud1, ud2);
+        B.y = B.fit_fun(ff, ud1, ud2);
+        C.y = C.fit_fun(ff, ud1, ud2);
+
+		double fa = m2d(A.y);
+        double fb = m2d(B.y);
+        double fc = m2d(C.y);
+        double fd = fc;
+		Xopt.ud = matrix(b - a);///tu
 
 		while (true)
 		{
-			double l = fa * (b * b - c * c) + fb * (c * c - a * a) + fc * (a * a - b * b);
-			double m = fa * (b - c) + fb * (c - a) + fc * (a - b);
-			if (m <= 0)
-				throw string("m <= 0 (parabola nie ma minimum)");
+			double l = fa * (b * b - c * c)
+                     + fb * (c * c - a * a)
+                     + fc * (a * a - b * b);
 
-			d_prev = d;
-			d = 0.5 * l / m;
+			double m = fa * (b - c)
+                     + fb * (c - a)
+                     + fc * (a - b);
+
+			if (m <= 0) throw string("m <= 0 (parabola nie ma minimum)");
+
+            d_prev = d;
+            d = 0.5 * l / m;
 
 			if (a < d && d < c)
-			{
-				D = solution(d);
-				D.fit_fun(ff, ud1, ud2);
-				fd = m2d(D.y);
-				if (fd < fc) { b = c; fb = fc; c = d; fc = fd; }
-				else { a = d; fa = fd; }
-			}
-			else if (c < d && d < b)
-			{
-				D = solution(d);
-				D.fit_fun(ff, ud1, ud2);
-				fd = m2d(D.y);
-				if (fd < fc) { a = c; fa = fc; c = d; fc = fd; }
-				else { b = d; fb = fd; }
-			}
-			else
-				throw string("d poza przedzialem (a, b)");
+            {
+                D = solution(d);
+                D.y = D.fit_fun(ff, ud1, ud2);
+                fd = m2d(D.y);
 
-			++i;
-			Xopt.ud.add_row(b - a);
-			if (solution::f_calls > Nmax)
-				throw string("przekroczono maksymalna liczbe wywolan funkcji celu");
-			if (b - a < epsilon || (i > 1 && fabs(d - d_prev) < gamma))
-				break;
+                if (fd < fc)
+                {
+                    b = c;  fb = fc;
+                    c = d;  fc = fd;
+                }
+                else
+                {
+                    a = d;  fa = fd;
+                }
+            }
+            else if (c < d && d < b)
+            {
+                D = solution(d);
+                D.y = D.fit_fun(ff, ud1, ud2);
+                fd = m2d(D.y);
+
+                if (fd < fc)
+                {
+                    a = c;  fa = fc;
+                    c = d;  fc = fd;
+                }
+                else
+                {
+                    b = d;  fb = fd;
+                }
+            }
+            else
+                throw string("d poza przedzialem (a, b)");
+
+            i++;
+			Xopt.ud.add_row(b - a);  ///tu
+            if (solution::f_calls > Nmax)
+                throw string("Przekroczono maksymalna liczbe wywolan funkcji celu");
+
+            if (b - a < epsilon || fabs(d - d_prev) < gamma)
+                break;
+
+
 		}
-		Xopt.x = D.x;
-		Xopt.y = D.y;
-		Xopt.flag = 0;
+		Xopt.x = D.x;                     
+		Xopt.y = D.y;                 
+		Xopt.flag = 0;	///tu
 		return Xopt;
 	}
 	catch (string ex_info)
