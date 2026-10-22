@@ -136,6 +136,7 @@ solution fib(matrix(*ff)(matrix, matrix, matrix), double a, double b, double eps
 		
 		c = b - theta[k - 1] / theta[k] * (b - a);
 		d = a + b - c;
+		Xopt.ud = matrix(b - a); ///tu
 
 		for (int i = 0; i < k - 2; i++)
 		{
@@ -155,6 +156,7 @@ solution fib(matrix(*ff)(matrix, matrix, matrix), double a, double b, double eps
 
 			c = b - theta[k - i - 2] / theta[k - i - 1] * (b - a);
 			d = a + b - c;
+			Xopt.ud.add_row(b - a); ///tu
 		}
 
 		Xopt.x = c;
@@ -190,6 +192,7 @@ solution lag(matrix(*ff)(matrix, matrix, matrix), double a, double b, double eps
         double fb = m2d(B.y);
         double fc = m2d(C.y);
         double fd = fc;
+		Xopt.ud = matrix(b - a);///tu
 
 		while (true)
 		{
@@ -242,7 +245,7 @@ solution lag(matrix(*ff)(matrix, matrix, matrix), double a, double b, double eps
                 throw string("d poza przedzialem (a, b)");
 
             i++;
-
+			Xopt.ud.add_row(b - a);  ///tu
             if (solution::f_calls > Nmax)
                 throw string("Przekroczono maksymalna liczbe wywolan funkcji celu");
 
@@ -251,7 +254,9 @@ solution lag(matrix(*ff)(matrix, matrix, matrix), double a, double b, double eps
 
 
 		}
-
+		Xopt.x = D.x;                     
+		Xopt.y = D.y;                 
+		Xopt.flag = 0;	///tu
 		return Xopt;
 	}
 	catch (string ex_info)

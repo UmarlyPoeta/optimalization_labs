@@ -22,7 +22,7 @@ int main()
 {
 	try
 	{
-		lab0();
+		lab1();
 	}
 	catch (string EX_INFO)
 	{
@@ -87,17 +87,149 @@ void lab0()
 	}
 }
 
+
+static string num(double v)
+{
+	ostringstream s;
+	s.precision(12);
+	s << v;
+	string t = s.str();
+	for (char& ch : t)
+		if (ch == '.') ch = ',';
+	return t;
+}
+
+// dok�adno��
+// maksymalna liczba wywo�a� funkcji celu
+// dolne oraz g�rne ograniczenie
+
 void lab1()
 {
-	double epsilon;												// dok�adno��
-	int Nmax;													// maksymalna liczba wywo�a� funkcji celu
-	matrix lb, ub;												// dolne oraz g�rne ograniczenie
-	solution opt;
+	double epsilon = 1e-9, gamma = 1e-9, d = 1.0;
+	int Nmax = 1000;
+	double lb = -100, ub = 100;
+	double alpha[3] = { 1.5, 2.0, 2.5 };
 
-	epsilon = 1e-9;
-	Nmax = 1000;
-	lb = -100, ub = 100;
+	double xg = lb, yg = 1e9;
+	for (double x = lb; x <= ub; x += 1e-3)
+	{
+		double y = m2d(ff1T(matrix(x)));
+		if (y < yg) { yg = y; xg = x; }
+	}
+	cout << "Minimum globalne (siatka): x = " << xg << ", y = " << yg << endl;
 
+	ofstream T1("lab1_tabela1.csv");
+	T1 << "alpha;x0;a;b;f_calls_ekspansja;fib_x;fib_y;fib_f_calls;fib_globalne;lag_x;lag_y;lag_f_calls;lag_globalne;lag_blad\n";
+	for (int ai = 0; ai < 3; ++ai)
+		for (int n = 0; n < 100; ++n)
+		{
+			double x0 = lb + (ub - lb) * m2d(rand_mat(1, 1));
+			double* p = nullptr;
+			try
+			{
+				p = expansion(ff1T, x0, d, alpha[ai], Nmax);
+			}
+			catch (string)
+			{
+				T1 << num(alpha[ai]) << ";" << num(x0) << ";blad ekspansji\n";
+				continue;
+			}
+			int f_exp = solution::f_calls;
+			double a = p[0], b = p[1];
+			delete[] p;
+
+			solution F = fib(ff1T, a, b, epsilon);
+			int f_fib = solution::f_calls;
+
+			T1 << num(alpha[ai]) << ";" << num(x0) << ";" << num(a) << ";" << num(b) << ";" << f_exp << ";"
+				<< num(m2d(F.x)) << ";" << num(m2d(F.y)) << ";" << f_fib << ";"
+				<< (fabs(m2d(F.x) - xg) < 0.01 ? 1 : 0) << ";";
+			try
+			{
+				solution L = lag(ff1T, a, b, epsilon, gamma, Nmax);
+				T1 << num(m2d(L.x)) << ";" << num(m2d(L.y)) << ";" << solution::f_calls << ";"
+					<< (fabs(m2d(L.x) - xg) < 0.01 ? 1 : 0) << ";0\n";
+			}
+			catch (string)
+			{
+				T1 << ";;" << solution::f_calls << ";0;1\n";
+			}
+		}
+	T1.close();
+
+	solution F = fib(ff1T, lb, ub, epsilon);
+	cout << "Fib bez ekspansji:\n" << F << endl;
+	matrix lenF = F.ud, lenL;
+	bool lagOK = true;
+	try
+	{
+		solution L = lag(ff1T, lb, ub, epsilon, gamma, Nmax);
+		cout << "Lag bez ekspansji:\n" << L << endl;
+		lenL = L.ud;
+	}
+	catch (string ex)
+	{
+		lagOK = false;
+		cout << "Lag bez ekspansji: blad\n" << ex << endl;
+	}
+	{
+		int nF = get_len(lenF), nL = lagOK ? get_len(lenL) : 0;
+		ofstream f("lab1_przedzial.csv");
+		f << "iteracja;fib;lag\n";
+		for (int i = 0; i < max(nF, nL); ++i)
+			f << i << ";" << (i < nF ? num(lenF(i)) : "") << ";" << (i < nL ? num(lenL(i)) : "") << "\n";
+	}
+
+	{
+		matrix Y0(3, 1);
+		Y0(0) = 5; Y0(1) = 1; Y0(2) = 20;
+
+		matrix* Yc = solve_ode(df1, 0, 1, 2000, Y0, matrix(50e-4));
+		double Tm = 0;
+		for (int i = 0; i < get_len(Yc[0]); ++i) Tm = max(Tm, Yc[1](i, 2));
+		cout << "Kontrola modelu (D_A = 50 cm2): max T_B = " << Tm << endl;
+		delete[] Yc;
+
+		double epsR = 1e-5, gammaR = 1e-5, alphaR = 1.5, dR = 1.0;
+		double x0 = 1 + 99 * m2d(rand_mat(1, 1));
+		double* p = expansion(ff1R, x0, dR, alphaR, Nmax);
+		double a = p[0], b = p[1];
+		int f_exp = solution::f_calls;
+		delete[] p;
+
+		solution Fr = fib(ff1R, a, b, epsR);
+		int f_fib = solution::f_calls;
+		solution Lr;
+		int f_lag = 0;
+		string lagErr;
+		try
+		{
+			Lr = lag(ff1R, a, b, epsR, gammaR, Nmax);
+		}
+		catch (string ex) { lagErr = ex; }
+		f_lag = solution::f_calls;
+
+		ofstream T3("lab1_tabela3.csv");
+		T3 << "metoda;x0;a;b;f_calls_ekspansja;D_A_cm2;y;f_calls;D_A_m2\n";
+		T3 << "Fibonacci;" << num(x0) << ";" << num(a) << ";" << num(b) << ";" << f_exp << ";"
+			<< num(m2d(Fr.x)) << ";" << num(m2d(Fr.y)) << ";" << f_fib << ";" << num(m2d(Fr.x) * 1e-4) << "\n";
+		if (lagErr.empty())
+			T3 << "Lagrange;" << num(x0) << ";" << num(a) << ";" << num(b) << ";" << f_exp << ";"
+			<< num(m2d(Lr.x)) << ";" << num(m2d(Lr.y)) << ";" << f_lag << ";" << num(m2d(Lr.x) * 1e-4) << "\n";
+		else
+			cout << "Lagrange (zbiorniki): blad: " << lagErr << endl;
+		T3.close();
+
+		cout << "Zbiorniki: x0 = " << x0 << ", [a,b] = [" << a << ", " << b << "]\n";
+		cout << "Fibonacci:\n" << Fr << endl;
+		if (lagErr.empty()) cout << "Lagrange:\n" << Lr << endl;
+
+		matrix* Y = solve_ode(df1, 0, 1, 2000, Y0, matrix(m2d(Fr.x) * 1e-4));
+		ofstream Sout("lab1_symulacja.csv");
+		Sout << hcat(Y[0], Y[1]);
+		Sout.close();
+		delete[] Y;
+	}
 }
 
 void lab2()
