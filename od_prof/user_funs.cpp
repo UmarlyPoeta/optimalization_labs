@@ -34,10 +34,49 @@ matrix df0(double t, matrix Y, matrix ud1, matrix ud2)
 	return dY;
 }
 
-matrix ff1T(matrix x, matrix ud1, matrix ud2)				
+matrix ff1T(matrix x, matrix ud1, matrix ud2)
 {
-	matrix y(2, 1);
-	y(0) = -cos(0.1 * x(0)) * std::exp(-1 * pow(0.1 * x(0) - 2 * M_PI, 2)) + 0.002 * pow(0.1 * x(0), 2);
-	y(1) = -cos(0.1 * x(1)) * std::exp(-1 * pow(0.1 * x(1) - 2 * M_PI, 2)) + 0.002 * pow(0.1 * x(1), 2);
+	int n = get_len(x);
+	matrix y(n, 1);
+	for (int i = 0; i < n; ++i)
+		y(i) = -cos(0.1 * x(i)) * std::exp(-1 * pow(0.1 * x(i) - 2 * M_PI, 2)) + 0.002 * pow(0.1 * x(i), 2);
+	return y;
+}
+
+
+matrix df1(double t, matrix Y, matrix ud1, matrix ud2)
+{
+	const double a = 0.98, b = 0.63, g = 9.81;
+	const double PA = 1.5, PB = 1.0;
+	const double DB = 36.5665e-4;
+	const double FBin = 0.01, TBin = 20, TA = 90;
+	double DA = m2d(ud1);
+	double FAout = a * b * DA * sqrt(2 * g * fmax(Y(0), 0.0) / PA);
+	double FBout = a * b * DB * sqrt(2 * g * fmax(Y(1), 0.0) / PB);
+	matrix dY(3, 1);
+	dY(0) = -FAout;
+	dY(1) = FAout + FBin - FBout;
+	dY(2) = FBin / Y(1) * (TBin - Y(2)) + FAout / Y(1) * (TA - Y(2));
+	return dY;
+}
+
+matrix ff1R(matrix x, matrix ud1, matrix ud2)
+{
+	int n = get_len(x);
+	matrix y(n, 1);
+	for (int k = 0; k < n; ++k)
+	{
+		double DA = fmax(x(k), 0.0) * 1e-4;
+		matrix Y0(3, 1);
+		Y0(0) = 5;  Y0(1) = 1;  Y0(2) = 20;
+		matrix* Y = solve_ode(df1, 0, 1, 2000, Y0, matrix(DA));
+		int m = get_len(Y[0]);
+		double Tmax = Y[1](0, 2);
+		for (int i = 1; i < m; ++i)
+			if (Y[1](i, 2) > Tmax)
+				Tmax = Y[1](i, 2);
+		y(k) = fabs(Tmax - 50);
+		delete[] Y;
+	}
 	return y;
 }
