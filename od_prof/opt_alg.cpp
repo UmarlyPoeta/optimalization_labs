@@ -133,41 +133,34 @@ solution fib(matrix(*ff)(matrix, matrix, matrix), double a, double b, double eps
             theta.push_back(theta[k] + theta[k - 1]);
             ++k;
         }
-		
-		c = b - theta[k - 1] / theta[k] * (b - a);
-		d = a + b - c;
-		Xopt.ud = matrix(b - a); ///tu
 
-		for (int i = 0; i < k - 2; i++)
-		{
-			matrix f(2, 1);
-			f(0) = c;
-			f(1) = d;
-			Xopt.x = f;
-			Xopt.fit_fun(ff, ud1, ud2);
-			if (Xopt.y(0) < Xopt.y(1))
-			{
-				b = d;
-			}
-			else
-			{
-				a = c;
-			}
+        c = b - theta[k - 1] / theta[k] * (b - a);
+        d = a + b - c;
+        Xopt.ud = matrix(b - a); /// tu
 
-			c = b - theta[k - i - 2] / theta[k - i - 1] * (b - a);
-			d = a + b - c;
-			Xopt.ud.add_row(b - a); ///tu
-		}
+        for (int i = 0; i < k - 2; i++) {
+          matrix f(2, 1);
+          f(0) = c;
+          f(1) = d;
+          Xopt.x = f;
+          Xopt.fit_fun(ff, ud1, ud2);
+          if (Xopt.y(0) < Xopt.y(1)) {
+            b = d;
+          } else {
+            a = c;
+          }
 
-		Xopt.x = c;
-		Xopt.fit_fun(ff, ud1, ud2);
-		return Xopt;
-	}
-	catch (string ex_info)
-	{
-		throw ("solution fib(...):\n" + ex_info);
-	}
+          c = b - theta[k - i - 2] / theta[k - i - 1] * (b - a);
+          d = a + b - c;
+          Xopt.ud.add_row(b - a); /// tu
+        }
 
+        Xopt.x = c;
+        Xopt.fit_fun(ff, ud1, ud2);
+        return Xopt;
+        } catch (string ex_info) {
+          throw("solution fib(...):\n" + ex_info);
+        }
 }
 
 solution lag(matrix(*ff)(matrix, matrix, matrix), double a, double b, double epsilon, double gamma, int Nmax, matrix ud1, matrix ud2)
@@ -177,92 +170,82 @@ solution lag(matrix(*ff)(matrix, matrix, matrix), double a, double b, double eps
 		solution Xopt;
 		//Tu wpisz kod funkcji
 		solution::clear_calls();
-		
-		int i = 0;
-		double c = (a+b)/2.0;
-		double d = c;
-		double d_prev = c;
 
-		solution A(a), B(b), C(c), D; 
-		A.y = A.fit_fun(ff, ud1, ud2);
-        B.y = B.fit_fun(ff, ud1, ud2);
-        C.y = C.fit_fun(ff, ud1, ud2);
+                int i = 0;
+                double c = (a + b) / 2.0;
+                double d = c;
+                double d_prev = c;
 
-		double fa = m2d(A.y);
-        double fb = m2d(B.y);
-        double fc = m2d(C.y);
-        double fd = fc;
-		Xopt.ud = matrix(b - a);///tu
+                solution A(a), B(b), C(c), D;
+                A.y = A.fit_fun(ff, ud1, ud2);
+                B.y = B.fit_fun(ff, ud1, ud2);
+                C.y = C.fit_fun(ff, ud1, ud2);
 
-		while (true)
-		{
-			double l = fa * (b * b - c * c)
-                     + fb * (c * c - a * a)
-                     + fc * (a * a - b * b);
+                double fa = m2d(A.y);
+                double fb = m2d(B.y);
+                double fc = m2d(C.y);
+                double fd = fc;
+                Xopt.ud = matrix(b - a); /// tu
 
-			double m = fa * (b - c)
-                     + fb * (c - a)
-                     + fc * (a - b);
+                while (true) {
+                  double l = fa * (b * b - c * c) + fb * (c * c - a * a) +
+                             fc * (a * a - b * b);
 
-			if (m <= 0) throw string("m <= 0 (parabola nie ma minimum)");
+                  double m = fa * (b - c) + fb * (c - a) + fc * (a - b);
 
-            d_prev = d;
-            d = 0.5 * l / m;
+                  if (m <= 0)
+                    throw string("m <= 0 (parabola nie ma minimum)");
 
-			if (a < d && d < c)
-            {
-                D = solution(d);
-                D.y = D.fit_fun(ff, ud1, ud2);
-                fd = m2d(D.y);
+                  d_prev = d;
+                  d = 0.5 * l / m;
 
-                if (fd < fc)
-                {
-                    b = c;  fb = fc;
-                    c = d;  fc = fd;
+                  if (a < d && d < c) {
+                    D = solution(d);
+                    D.y = D.fit_fun(ff, ud1, ud2);
+                    fd = m2d(D.y);
+
+                    if (fd < fc) {
+                      b = c;
+                      fb = fc;
+                      c = d;
+                      fc = fd;
+                    } else {
+                      a = d;
+                      fa = fd;
+                    }
+                  } else if (c < d && d < b) {
+                    D = solution(d);
+                    D.y = D.fit_fun(ff, ud1, ud2);
+                    fd = m2d(D.y);
+
+                    if (fd < fc) {
+                      a = c;
+                      fa = fc;
+                      c = d;
+                      fc = fd;
+                    } else {
+                      b = d;
+                      fb = fd;
+                    }
+                  } else
+                    throw string("d poza przedzialem (a, b)");
+
+                  i++;
+                  Xopt.ud.add_row(b - a); /// tu
+                  if (solution::f_calls > Nmax)
+                    throw string(
+                        "Przekroczono maksymalna liczbe wywolan funkcji celu");
+
+                  if (b - a < epsilon || fabs(d - d_prev) < gamma)
+                    break;
                 }
-                else
-                {
-                    a = d;  fa = fd;
+                Xopt.x = D.x;
+                Xopt.y = D.y;
+                Xopt.flag = 0; /// tu
+                return Xopt;
+                } catch (string ex_info) {
+                  throw("solution lag(...):\n" + ex_info);
                 }
-            }
-            else if (c < d && d < b)
-            {
-                D = solution(d);
-                D.y = D.fit_fun(ff, ud1, ud2);
-                fd = m2d(D.y);
-
-                if (fd < fc)
-                {
-                    a = c;  fa = fc;
-                    c = d;  fc = fd;
-                }
-                else
-                {
-                    b = d;  fb = fd;
-                }
-            }
-            else
-                throw string("d poza przedzialem (a, b)");
-
-            i++;
-			Xopt.ud.add_row(b - a);  ///tu
-            if (solution::f_calls > Nmax)
-                throw string("Przekroczono maksymalna liczbe wywolan funkcji celu");
-
-            if (b - a < epsilon || fabs(d - d_prev) < gamma)
-                break;
-
-
-		}
-		Xopt.x = D.x;                     
-		Xopt.y = D.y;                 
-		Xopt.flag = 0;	///tu
-		return Xopt;
-	}
-	catch (string ex_info)
-	{
-		throw ("solution lag(...):\n" + ex_info);
-	}
 }
 
 solution HJ(matrix(*ff)(matrix, matrix, matrix), matrix x0, double s, double alpha, double epsilon, int Nmax, matrix ud1, matrix ud2)
@@ -271,27 +254,77 @@ solution HJ(matrix(*ff)(matrix, matrix, matrix), matrix x0, double s, double alp
 	{
 		solution Xopt;
 		//Tu wpisz kod funkcji
+                solution::clear_calls();
+                solution X;
+                solution X_b(x0);
+                solution X_b_old;
 
-		return Xopt;
-	}
-	catch (string ex_info)
-	{
-		throw ("solution HJ(...):\n" + ex_info);
-	}
+                X_b.fit_fun(ff, ud1, ud2);
+
+                do {
+                  X = HJ_trial(ff, X_b, s, ud1, ud2);
+
+                  if (m2d(X_b.y) > m2d(X.y)) {
+
+                    do {
+                      X_b_old = X_b;
+                      X_b = X;
+                      X.x = 2.0 * X_b.x - X_b_old.x;
+                      X.fit_fun(ff, ud1, ud2);
+                      X = HJ_trial(ff, X, s, ud1, ud2);
+
+                      if (solution::f_calls > Nmax) {
+                        throw("error");
+                      }
+                    } while (m2d(X.y) < m2d(X_b.y));
+                    X = X_b;
+                  } else {
+                    s = alpha * s;
+                  }
+
+                  if (solution::f_calls > Nmax) {
+                    throw("error");
+                  }
+                } while (s >= epsilon);
+
+                Xopt = X_b;
+
+                return Xopt;
+        } catch (string ex_info) {
+          throw("solution HJ(...):\n" + ex_info);
+        }
 }
 
 solution HJ_trial(matrix(*ff)(matrix, matrix, matrix), solution XB, double s, matrix ud1, matrix ud2)
 {
 	try
 	{
-		//Tu wpisz kod funkcji
+          solution X;
+          double N = get_len(XB.x);
+          // Tu wpisz kod funkcji
+          for (int j = 0; j < N; j++) {
+            matrix e(N, 1, 0.0);
+            e(j) = 1.0;
 
-		return XB;
-	}
-	catch (string ex_info)
-	{
-		throw ("solution HJ_trial(...):\n" + ex_info);
-	}
+            X.x = XB.x + s * e;
+            X.fit_fun(ff, ud1, ud2);
+            XB.fit_fun(ff, ud1, ud2);
+
+            if (m2d(X.y) < m2d(XB.y)) {
+              XB = X;
+            } else {
+              X.x = XB.x - s * e;
+              X.fit_fun(ff, ud1, ud2);
+              if (m2d(X.y) < m2d(XB.y)) {
+                XB = X;
+              }
+            }
+          }
+
+          return XB;
+        } catch (string ex_info) {
+          throw("solution HJ_trial(...):\n" + ex_info);
+        }
 }
 
 solution Rosen(matrix(*ff)(matrix, matrix, matrix), matrix x0, matrix s0, double alpha, double beta, double epsilon, int Nmax, matrix ud1, matrix ud2)
