@@ -258,8 +258,10 @@ solution HJ(matrix(*ff)(matrix, matrix, matrix), matrix x0, double s, double alp
                 solution X;
                 solution X_b(x0);
                 solution X_b_old;
-
+                matrix traj;   //trajektoria rozwiazan bazowych, wiersz = punkt
+                
                 X_b.fit_fun(ff, ud1, ud2);
+                traj = trans(X_b.x); //punkt startowy jako pierwszy wiersz
 
                 do {
                   X = HJ_trial(ff, X_b, s, ud1, ud2);
@@ -269,6 +271,7 @@ solution HJ(matrix(*ff)(matrix, matrix, matrix), matrix x0, double s, double alp
                     do {
                       X_b_old = X_b;
                       X_b = X;
+                      traj.add_row(trans(X_b.x));    //dopisanie nowej bazy do trajektorii
                       X.x = 2.0 * X_b.x - X_b_old.x;
                       X.fit_fun(ff, ud1, ud2);
                       X = HJ_trial(ff, X, s, ud1, ud2);
@@ -283,11 +286,12 @@ solution HJ(matrix(*ff)(matrix, matrix, matrix), matrix x0, double s, double alp
                   }
 
                   if (solution::f_calls > Nmax) {
-                    throw("error");
+                    throw string("error");  //string
                   }
                 } while (s >= epsilon);
 
                 Xopt = X_b;
+                Xopt.ud = traj;				//trajektoria w ud
 
                 return Xopt;
         } catch (string ex_info) {
@@ -330,12 +334,122 @@ solution HJ_trial(matrix(*ff)(matrix, matrix, matrix), solution XB, double s, ma
 solution Rosen(matrix(*ff)(matrix, matrix, matrix), matrix x0, matrix s0, double alpha, double beta, double epsilon, int Nmax, matrix ud1, matrix ud2)
 {
 	try
-	{
-		solution Xopt;
-		//Tu wpisz kod funkcji
+    {
+        solution Xopt;
+        solution::clear_calls();
 
-		return Xopt;
-	}
+        int n = get_len(x0);
+        matrix traj;
+
+        matrix D = ident_mat(n);          // kolumny = kierunki dj
+        matrix lambda(n, 1, 0.0);         // lambda_j
+        matrix p(n, 1, 0.0);              // p_j (liczba porazek)
+        matrix s = s0;                    // biezace dlugosci krokow
+
+        matrix xB = x0;
+        solution XB(xB);
+        XB.y = XB.fit_fun(ff, ud1, ud2);
+        double fB = m2d(XB.y);
+        traj = trans(xB);	
+
+        while (true)
+        {
+            for (int j = 0; j < n; ++j)
+            {
+                // punkt probny xt = xB + s_j * d_j
+                matrix xt = xB;
+                for (int k = 0; k < n; ++k)
+                    xt(k) = xB(k) + s(j) * D(k, j);
+
+                solution XT(xt);
+                XT.fit_fun(ff, ud1, ud2);
+                double ft = m2d(XT.y);
+
+                if (ft < fB)
+                {
+                    xB = xt;
+                    fB = ft;
+                    lambda(j) += s(j);
+                    s(j) *= alpha;
+                }
+                else
+                {
+                    s(j) *= -beta;
+                    p(j) += 1;
+                }
+            }
+
+            traj.add_row(trans(xB));	
+
+            // czy dla kazdego j: lambda_j != 0 i p_j != 0
+            bool change = true;
+            for (int j = 0; j < n; ++j)
+                if (lambda(j) == 0 || p(j) == 0)
+                {
+                    change = false;
+                    break;
+                }
+
+            if (change)
+            {
+                // zmiana bazy: Q_j = sum_{k>=j} lambda_k * d_k
+                matrix Q(n, n, 0.0);
+                for (int j = 0; j < n; ++j)
+                    for (int r = 0; r < n; ++r)
+                    {
+                        double sum = 0.0;
+                        for (int k = j; k < n; ++k)
+                            sum += lambda(k) * D(r, k);
+                        Q(r, j) = sum;
+                    }
+
+                // ortogonalizacja Grama-Schmidta
+                matrix Dn(n, n, 0.0);
+                for (int j = 0; j < n; ++j)
+                {
+                    matrix v = get_col(Q, j);
+                    for (int k = 0; k < j; ++k)
+                    {
+                        double dot = 0.0;
+                        for (int r = 0; r < n; ++r)
+                            dot += Q(r, j) * Dn(r, k);
+                        for (int r = 0; r < n; ++r)
+                            v(r) -= dot * Dn(r, k);
+                    }
+                    double nv = norm(v);
+                    for (int r = 0; r < n; ++r)
+                        Dn(r, j) = v(r) / nv;
+                }
+                D = Dn;
+
+                for (int j = 0; j < n; ++j)
+                {
+                    lambda(j) = 0.0;
+                    p(j) = 0.0;
+                    s(j) = s0(j);
+                }
+            }
+
+            if (solution::f_calls > Nmax)
+                throw string("Przekroczono maksymalna liczbe wywolan funkcji celu");
+
+            // warunek stopu: max |s_j| < epsilon
+            double smax = 0.0;
+            for (int j = 0; j < n; ++j)
+                if (fabs(s(j)) > smax)
+                    smax = fabs(s(j));
+
+            if (smax < epsilon)
+                break;
+        }
+
+        Xopt.x = xB;
+        Xopt.y = fB;
+        Xopt.ud = traj;	
+        Xopt.flag = 1;
+
+        return Xopt;
+    }
 	catch (string ex_info)
 	{
 		throw ("solution Rosen(...):\n" + ex_info);

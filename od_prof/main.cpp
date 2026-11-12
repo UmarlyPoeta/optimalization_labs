@@ -22,7 +22,7 @@ int main()
 {
 	try
 	{
-		lab1();
+		lab2();
 	}
 	catch (string EX_INFO)
 	{
@@ -232,8 +232,194 @@ void lab1()
 	}
 }
 
+struct Wyn2
+{
+	bool ok = false;
+	double x1 = 0, x2 = 0, y = 0;
+	int calls = 0;
+	bool glob = false;
+	vector<vector<double>> traj;
+};
+
+// metoda: 0 = Hooke-Jeeves, 1 = Rosenbrock
+static Wyn2 run2(int metoda, matrix x0, double s, double alphaHJ, double alphaR, double betaR, double eps, int Nmax)
+{
+	Wyn2 w;
+	try
+	{
+		solution S;
+		if (metoda == 0)
+			S = HJ(ff2T, x0, s, alphaHJ, eps, Nmax);
+		else
+			S = Rosen(ff2T, x0, matrix(2, 1, s), alphaR, betaR, eps, Nmax);
+		w.ok = true;
+		w.calls = solution::f_calls;
+		w.x1 = S.x(0);
+		w.x2 = S.x(1);
+		w.y = m2d(S.y);
+		w.glob = sqrt(w.x1 * w.x1 + w.x2 * w.x2) < 0.01;		// kryterium minimum globalnego (0,0)
+		int* sz = get_size(S.ud);
+		int rows = sz[0];
+		for (int r = 0; r < rows; ++r)
+			w.traj.push_back({ S.ud(r, 0), S.ud(r, 1) });
+	}
+	catch (string)
+	{
+		w.ok = false;
+		w.calls = solution::f_calls;
+	}
+	return w;
+}
+
+
 void lab2()
 {
+	double epsilon = 1e-4;											// dokladnosc
+	int Nmax = 10000;												// max liczba wywolan funkcji celu
+	double alphaHJ = 0.5;											// wsp. zmniejszania kroku (HJ)
+	double alphaR = 2.0, betaR = 0.5;								// wsp. ekspansji i kontrakcji (Rosenbrock)
+	double s[3] = { 0.05, 0.25, 0.5 };								// trzy dlugosci kroku
+
+	//funkcja testowa
+	double sum[2][3][4] = {};										// [metoda][krok][x1,x2,y,calls]
+	int cnt[2][3] = {};												// liczba minimow globalnych
+	vector<vector<double>> trajHJ, trajR;							// trajektorie do wykresu (krok nr 2, 1. losowanie)
+
+	ofstream T1("lab2_tabela1.csv");
+	T1 << "s;lp;x1_0;x2_0;HJ_x1;HJ_x2;HJ_y;HJ_calls;HJ_global;R_x1;R_x2;R_y;R_calls;R_global\n";
+	for (int si = 0; si < 3; ++si)
+		for (int n = 0; n < 100; ++n)
+		{
+			matrix x0(2, 1);
+			x0(0) = -1 + 2 * m2d(rand_mat(1, 1));
+			x0(1) = -1 + 2 * m2d(rand_mat(1, 1));
+
+			Wyn2 r[2];
+			for (int m = 0; m < 2; ++m)
+				r[m] = run2(m, x0, s[si], alphaHJ, alphaR, betaR, epsilon, Nmax);
+
+			T1 << num(s[si]) << ";" << n + 1 << ";" << num(x0(0)) << ";" << num(x0(1));
+			for (int m = 0; m < 2; ++m)
+			{
+				if (r[m].ok)
+				{
+					T1 << ";" << num(r[m].x1) << ";" << num(r[m].x2) << ";" << num(r[m].y) << ";" << r[m].calls
+						<< ";" << (r[m].glob ? "TAK" : "NIE");
+					if (r[m].glob)
+					{
+						sum[m][si][0] += r[m].x1;
+						sum[m][si][1] += r[m].x2;
+						sum[m][si][2] += r[m].y;
+						sum[m][si][3] += r[m].calls;
+						cnt[m][si]++;
+					}
+				}
+				else
+					T1 << ";;;;" << r[m].calls << ";NIE";
+			}
+			T1 << "\n";
+
+			if (si == 1 && n == 0)
+			{
+				trajHJ = r[0].traj;
+				trajR = r[1].traj;
+			}
+		}
+	T1.close();
+
+	//tabela 2 - wartosci srednie (tylko minima globalne)
+	ofstream T2("lab2_tabela2.csv");
+	T2 << "s;HJ_x1;HJ_x2;HJ_y;HJ_calls;HJ_liczba_global;R_x1;R_x2;R_y;R_calls;R_liczba_global\n";
+	for (int si = 0; si < 3; ++si)
+	{
+		T2 << num(s[si]);
+		for (int m = 0; m < 2; ++m)
+		{
+			for (int k = 0; k < 4; ++k)
+				T2 << ";" << (cnt[m][si] ? num(sum[m][si][k] / cnt[m][si]) : string(""));
+			T2 << ";" << cnt[m][si];
+		}
+		T2 << "\n";
+	}
+	T2.close();
+
+	//trajektorie do wykresu
+	{
+		ofstream W("lab2_wykres.csv");
+		W << "iteracja;HJ_x1;HJ_x2;R_x1;R_x2\n";
+		size_t L = max(trajHJ.size(), trajR.size());
+		for (size_t i = 0; i < L; ++i)
+		{
+			W << i << ";";
+			if (i < trajHJ.size()) W << num(trajHJ[i][0]) << ";" << num(trajHJ[i][1]); else W << ";";
+			W << ";";
+			if (i < trajR.size()) W << num(trajR[i][0]) << ";" << num(trajR[i][1]); else W << ";";
+			W << "\n";
+		}
+		W.close();
+
+		//siatka wartosci funkcji celu do narysowania poziomic (wiersz 1: x1, kolumna 1: x2)
+		ofstream G("lab2_poziomice.csv");
+		int N = 101;
+		G << "x2\\x1";
+		for (int i = 0; i < N; ++i) G << ";" << num(-1 + 2.0 * i / (N - 1));
+		G << "\n";
+		for (int j = 0; j < N; ++j)
+		{
+			double x2 = -1 + 2.0 * j / (N - 1);
+			G << num(x2);
+			for (int i = 0; i < N; ++i)
+			{
+				matrix x(2, 1);
+				x(0) = -1 + 2.0 * i / (N - 1);
+				x(1) = x2;
+				G << ";" << num(m2d(ff2T(x, NAN, NAN)));
+			}
+			G << "\n";
+		}
+		G.close();
+	}
+
+	//problem rzeczywisty
+	{
+		matrix kt(2, 1);
+		kt(0) = 5; kt(1) = 5;
+		cout << "Kontrola modelu: Q(5,5) = " << m2d(ff2R(kt, NAN, NAN)) << " (oczekiwane ok. 453.713)" << endl;
+
+		double sR = 1.0, epsR = 1e-3;
+		matrix k0(2, 1);
+		k0(0) = 20 * m2d(rand_mat(1, 1));
+		k0(1) = 20 * m2d(rand_mat(1, 1));
+
+		solution H, R;
+		int cH = 0, cR = 0;
+		try { H = HJ(ff2R, k0, sR, alphaHJ, epsR, Nmax); cH = solution::f_calls; }
+		catch (string ex) { cout << "HJ (ramie): blad\n" << ex << endl; }
+		try { R = Rosen(ff2R, k0, matrix(2, 1, sR), alphaR, betaR, epsR, Nmax); cR = solution::f_calls; }
+		catch (string ex) { cout << "Rosen (ramie): blad\n" << ex << endl; }
+
+		cout << "k0 = " << k0(0) << ", " << k0(1) << endl;
+		cout << "HJ:\n" << H << endl;
+		cout << "Rosenbrock:\n" << R << endl;
+
+		ofstream T3("lab2_tabela3.csv");
+		T3 << "s;HJ_k1;HJ_k2;HJ_Q;HJ_calls;R_k1;R_k2;R_Q;R_calls;k1_0;k2_0\n";
+		T3 << num(sR) << ";" << num(H.x(0)) << ";" << num(H.x(1)) << ";" << num(m2d(H.y)) << ";" << cH << ";"
+			<< num(R.x(0)) << ";" << num(R.x(1)) << ";" << num(m2d(R.y)) << ";" << cR << ";"
+			<< num(k0(0)) << ";" << num(k0(1)) << "\n";
+		T3.close();
+
+		//symulacja dla optymalnych k1, k2: t; alpha_HJ; omega_HJ; alpha_R; omega_R
+		matrix Y0(2, 1, 0.0);
+		matrix* YH = solve_ode(df2, 0, 0.1, 100, Y0, H.x);
+		matrix* YR = solve_ode(df2, 0, 0.1, 100, Y0, R.x);
+		ofstream Sout("lab2_symulacja.csv");
+		Sout << hcat(hcat(YH[0], YH[1]), YR[1]);
+		Sout.close();
+		delete[] YH;
+		delete[] YR;
+	}
+
 
 }
 
