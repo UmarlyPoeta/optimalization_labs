@@ -80,3 +80,40 @@ matrix ff1R(matrix x, matrix ud1, matrix ud2)
 	}
 	return y;
 }
+
+matrix ff2T(matrix x, matrix ud1, matrix ud2)
+{
+	double v = pow(x(0), 2) + pow(x(1), 2)
+		- cos(2.5 * M_PI * x(0)) - cos(2.5 * M_PI * x(1)) + 2;
+	return matrix(v);
+}
+
+// Y = [alpha; omega], ud1 = [k1; k2]
+matrix df2(double t, matrix Y, matrix ud1, matrix ud2)
+{
+	double mr = 1.0, mc = 5.0, l = 1.5, b = 0.5;
+	double a_ref = 3.14, w_ref = 0.0;							// wartosc zadana (3.14 - zgodnie z wartoscia kontrolna Q = 453.713)
+	double I = mr * l * l / 3.0 + mc * l * l;					// moment bezwladnosci
+	double M = ud1(0) * (a_ref - Y(0)) + ud1(1) * (w_ref - Y(1));
+	matrix dY(2, 1);
+	dY(0) = Y(1);
+	dY(1) = (M - b * Y(1)) / I;
+	return dY;
+}
+
+matrix ff2R(matrix x, matrix ud1, matrix ud2)
+{
+	double a_ref = 3.14, w_ref = 0.0, dt = 0.1;
+	matrix Y0(2, 1, 0.0);
+	matrix* Y = solve_ode(df2, 0, dt, 100, Y0, x);
+	int n = get_len(Y[0]);
+	double Q = 0.0;
+	for (int i = 0; i < n; ++i)
+	{
+		double a = Y[1](i, 0), w = Y[1](i, 1);
+		double M = x(0) * (a_ref - a) + x(1) * (w_ref - w);
+		Q += (10.0 * pow(a_ref - a, 2) + pow(w_ref - w, 2) + pow(M, 2)) * dt;
+	}
+	delete[] Y;
+	return matrix(Q);
+}
