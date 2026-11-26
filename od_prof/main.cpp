@@ -22,7 +22,7 @@ int main()
 {
 	try
 	{
-		lab2();
+		lab3();
 	}
 	catch (string EX_INFO)
 	{
@@ -425,7 +425,106 @@ void lab2()
 
 void lab3()
 {
+	double epsilon = 1e-4;											// dokladnosc (metoda kary i sympleks)
+	int Nmax = 10000;												// max liczba wywolan funkcji celu
+	double c_zew = 1.0, dc_zew = 10.0;								// zewnetrzna funkcja kary: c rosnie
+	double c_wew = 1.0, dc_wew = 0.1;								// wewnetrzna funkcja kary: c maleje
+	double a[3] = { 4, 4.4934, 5 };
 
+	//funkcja testowa
+	double sum[3][2][5] = {};										// [a][kara][x1, x2, r, y, calls]
+	int ok[3][2] = {};
+	ofstream T1("lab3_tabela1.csv");
+	T1 << "a;lp;x1_0;x2_0;zew_x1;zew_x2;zew_r;zew_y;zew_calls;wew_x1;wew_x2;wew_r;wew_y;wew_calls\n";
+	for (int ai = 0; ai < 3; ++ai)
+		for (int n = 0; n < 100; ++n)
+		{
+			// losowy punkt startowy wewnatrz obszaru dopuszczalnego
+			matrix x0(2, 1);
+			do
+			{
+				x0(0) = 1 + (a[ai] - 1) * m2d(rand_mat(1, 1));
+				x0(1) = 1 + (a[ai] - 1) * m2d(rand_mat(1, 1));
+			} while (norm(x0) >= a[ai]);
+
+			T1 << num(a[ai]) << ";" << n + 1 << ";" << num(x0(0)) << ";" << num(x0(1));
+			for (int m = 0; m < 2; ++m)
+			{
+				try
+				{
+					solution X = (m == 0)
+						? pen(ff3T_zew, x0, c_zew, dc_zew, epsilon, Nmax, matrix(a[ai]))
+						: pen(ff3T_wew, x0, c_wew, dc_wew, epsilon, Nmax, matrix(a[ai]));
+					int calls = solution::f_calls;
+					double v[5] = { X.x(0), X.x(1), norm(X.x), m2d(ff3T(X.x)), (double)calls };
+					for (int k = 0; k < 4; ++k)
+						T1 << ";" << num(v[k]);
+					T1 << ";" << calls;
+					for (int k = 0; k < 5; ++k)
+						sum[ai][m][k] += v[k];
+					ok[ai][m]++;
+				}
+				catch (string ex)
+				{
+					cerr << "a = " << a[ai] << ", lp = " << n + 1 << ", kara " << m << ":\n" << ex << endl;
+					T1 << ";;;;;" << solution::f_calls;
+				}
+			}
+			T1 << "\n";
+		}
+	T1.close();
+
+	ofstream T2("lab3_tabela2.csv");
+	T2 << "a;zew_x1;zew_x2;zew_r;zew_y;zew_calls;zew_liczba;wew_x1;wew_x2;wew_r;wew_y;wew_calls;wew_liczba\n";
+	for (int ai = 0; ai < 3; ++ai)
+	{
+		T2 << num(a[ai]);
+		for (int m = 0; m < 2; ++m)
+		{
+			for (int k = 0; k < 5; ++k)
+				T2 << ";" << (ok[ai][m] ? num(sum[ai][m][k] / ok[ai][m]) : string(""));
+			T2 << ";" << ok[ai][m];
+		}
+		T2 << "\n";
+	}
+	T2.close();
+
+	//problem rzeczywisty
+	{
+		matrix kontrola(2, 1);
+		kontrola(0) = 5; kontrola(1) = 10;
+		matrix w = sym3R(kontrola);
+		cout << "Kontrola modelu (v0x = 5, omega = 10): x_end = " << w(0) << " (t = " << w(2)
+			<< " s), x(y = 50) = " << w(1) << " (oczekiwane ok. 41.41 i 21.61)" << endl;
+
+		double epsR = 1e-3, cR = 1.0, dcR = 10.0;
+		matrix x0(2, 1);
+		x0(0) = -10 + 20 * m2d(rand_mat(1, 1));
+		x0(1) = -15 + 30 * m2d(rand_mat(1, 1));
+
+		solution R = pen(ff3R, x0, cR, dcR, epsR, Nmax);
+		int calls = solution::f_calls;
+		matrix wR = sym3R(R.x);
+		cout << "Pilka: x0 = [" << x0(0) << ", " << x0(1) << "]\n" << R
+			<< "x_end = " << wR(0) << ", x(y = 50) = " << wR(1) << ", t_end = " << wR(2) << endl;
+
+		ofstream T3("lab3_tabela3.csv");
+		T3 << "v0x_0;omega_0;v0x;omega;x_end;x_y50;calls;t_end\n";
+		T3 << num(x0(0)) << ";" << num(x0(1)) << ";" << num(R.x(0)) << ";" << num(R.x(1)) << ";"
+			<< num(wR(0)) << ";" << num(wR(1)) << ";" << calls << ";" << num(wR(2)) << "\n";
+		T3.close();
+
+		matrix Y0(4, 1, 0.0);
+		Y0(1) = R.x(0);
+		Y0(2) = 100;
+		matrix* Y = solve_ode(df3, 0, 0.01, 7, Y0, matrix(R.x(1)));
+		ofstream S("lab3_symulacja.csv");
+		S << "t;x;y\n";
+		for (int i = 0; i < get_len(Y[0]); ++i)
+			S << num(Y[0](i)) << ";" << num(Y[1](i, 0)) << ";" << num(Y[1](i, 2)) << "\n";
+		S.close();
+		delete[] Y;
+	}
 }
 
 void lab4()

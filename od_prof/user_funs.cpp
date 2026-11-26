@@ -117,3 +117,104 @@ matrix ff2R(matrix x, matrix ud1, matrix ud2)
 	delete[] Y;
 	return matrix(Q);
 }
+
+// ----------------------------------------------------------------- lab 3
+
+// testowa funkcja celu: f(x1,x2) = sin(pi*r') / (pi*r'),  r' = sqrt((x1/pi)^2 + (x2/pi)^2)
+matrix ff3T(matrix x, matrix ud1, matrix ud2)
+{
+	double t = M_PI * sqrt(pow(x(0) / M_PI, 2) + pow(x(1) / M_PI, 2));
+	return matrix(sin(t) / t);
+}
+
+// ograniczenia g_i(x) <= 0; ud1 = a
+static void g3T(matrix x, double a, double g[3])
+{
+	g[0] = -x(0) + 1;
+	g[1] = -x(1) + 1;
+	g[2] = sqrt(pow(x(0), 2) + pow(x(1), 2)) - a;
+}
+
+// zewnetrzna funkcja kary: F(x) = f(x) + c * sum(max(0, g_i)^2); ud1 = a, ud2 = c
+matrix ff3T_zew(matrix x, matrix ud1, matrix ud2)
+{
+	double g[3];
+	g3T(x, m2d(ud1), g);
+	double S = 0.0;
+	for (int i = 0; i < 3; ++i)
+		S += pow(fmax(0.0, g[i]), 2);
+	return ff3T(x) + m2d(ud2) * S;
+}
+
+// wewnetrzna funkcja kary: F(x) = f(x) - c * sum(1 / g_i); ud1 = a, ud2 = c
+// poza obszarem dopuszczalnym (g_i >= 0) zwracana jest bardzo duza wartosc (bariera)
+matrix ff3T_wew(matrix x, matrix ud1, matrix ud2)
+{
+	double g[3];
+	g3T(x, m2d(ud1), g);
+	double S = 0.0;
+	for (int i = 0; i < 3; ++i)
+	{
+		if (g[i] >= 0)
+			return matrix(1e10);
+		S -= 1.0 / g[i];
+	}
+	return ff3T(x) + m2d(ud2) * S;
+}
+
+// model lotu pilki z efektem Magnusa; Y = [x; vx; y; vy], ud1 = omega
+matrix df3(double t, matrix Y, matrix ud1, matrix ud2)
+{
+	const double m = 0.6, r = 0.12, C = 0.47, rho = 1.2, g = 9.81;
+	const double S = M_PI * r * r;
+	double omega = m2d(ud1);
+	double vx = Y(1), vy = Y(3);
+	double Dx = 0.5 * C * rho * S * vx * fabs(vx);
+	double Dy = 0.5 * C * rho * S * vy * fabs(vy);
+	double FMx = rho * vy * omega * M_PI * pow(r, 3);
+	double FMy = rho * vx * omega * M_PI * pow(r, 3);
+	matrix dY(4, 1);
+	dY(0) = vx;
+	dY(1) = -(Dx + FMx) / m;
+	dY(2) = vy;
+	dY(3) = -(Dy + FMy) / m - g;
+	return dY;
+}
+
+// symulacja lotu pilki dla x = [v0x; omega]; zwraca x_end (x dla y najblizszego 0) oraz x dla y najblizszego 50 m
+matrix sym3R(matrix x)
+{
+	matrix Y0(4, 1, 0.0);
+	Y0(1) = x(0);
+	Y0(2) = 100;
+	matrix* Y = solve_ode(df3, 0, 0.01, 7, Y0, matrix(x(1)));
+	int n = get_len(Y[0]);
+	int i0 = 0, i50 = 0;
+	for (int i = 1; i < n; ++i)
+	{
+		if (fabs(Y[1](i, 2)) < fabs(Y[1](i0, 2))) i0 = i;
+		if (fabs(Y[1](i, 2) - 50) < fabs(Y[1](i50, 2) - 50)) i50 = i;
+	}
+	matrix wynik(3, 1);
+	wynik(0) = Y[1](i0, 0);		// x_end
+	wynik(1) = Y[1](i50, 0);	// x dla y = 50 m
+	wynik(2) = Y[0](i0);		// czas upadku
+	delete[] Y;
+	return wynik;
+}
+
+// problem rzeczywisty: maksymalizacja x_end -> minimalizacja -x_end z zewnetrzna funkcja kary; ud2 = c
+matrix ff3R(matrix x, matrix ud1, matrix ud2)
+{
+	matrix w = sym3R(x);
+	double x50 = w(1);
+	double g[6] = {
+		x(0) - 10, -10 - x(0),		// v0x w [-10, 10]
+		x(1) - 15, -15 - x(1),		// omega w [-15, 15]
+		2 - x50, x50 - 8			// x(y = 50) w [2, 8]
+	};
+	double S = 0.0;
+	for (int i = 0; i < 6; ++i)
+		S += pow(fmax(0.0, g[i]), 2);
+	return matrix(-w(0) + m2d(ud2) * S);
+}

@@ -460,8 +460,31 @@ solution pen(matrix(*ff)(matrix, matrix, matrix), matrix x0, double c, double dc
 {
 	try {
 		solution Xopt;
-		//Tu wpisz kod funkcji
+		solution::clear_calls();
 
+		// parametry metody sympleks Neldera-Meada uzywanej w kazdej iteracji
+		const double s = 0.5, alpha = 1.0, beta = 0.5, gamma = 2.0, delta = 0.5;
+
+		matrix x_prev = x0;
+		int i = 0;
+		while (true)
+		{
+			++i;
+			// F(i)(x) = f(x) + c(i) * S(x); wspolczynnik c przekazywany do funkcji celu w ud2
+			solution Xi = sym_NM(ff, x_prev, s, alpha, beta, gamma, delta, epsilon, Nmax, ud1, matrix(c));
+			c = dc * c;
+
+			if (solution::f_calls > Nmax)
+				throw string("Przekroczono maksymalna liczbe wywolan funkcji celu");
+
+			bool stop = norm(Xi.x - x_prev) < epsilon;
+			x_prev = Xi.x;
+			Xopt = Xi;
+			if (stop)
+				break;
+		}
+		Xopt.flag = 0;
+		Xopt.ud = matrix(i);		// liczba iteracji metody funkcji kary
 		return Xopt;
 	}
 	catch (string ex_info)
@@ -475,8 +498,97 @@ solution sym_NM(matrix(*ff)(matrix, matrix, matrix), matrix x0, double s, double
 	try
 	{
 		solution Xopt;
-		//Tu wpisz kod funkcji
+		int n = get_len(x0);
 
+		// sympleks poczatkowy: p0 = x0, pi = p0 + s*ei
+		solution* p = new solution[n + 1];
+		p[0] = solution(x0);
+		for (int i = 1; i <= n; ++i)
+		{
+			matrix e(n, 1, 0.0);
+			e(i - 1) = 1.0;
+			p[i] = solution(x0 + s * e);
+		}
+		for (int i = 0; i <= n; ++i)
+			p[i].fit_fun(ff, ud1, ud2);
+
+		int i_min = 0, i_max = 0;
+		while (true)
+		{
+			// wierzcholek najlepszy i najgorszy (min != max)
+			i_min = 0; i_max = 0;
+			for (int i = 1; i <= n; ++i)
+			{
+				if (m2d(p[i].y) < m2d(p[i_min].y)) i_min = i;
+				if (m2d(p[i].y) > m2d(p[i_max].y)) i_max = i;
+			}
+			if (i_min == i_max)
+				i_max = (i_min == 0) ? 1 : 0;
+
+			// srodek ciezkosci bez wierzcholka najgorszego
+			matrix pc(n, 1, 0.0);
+			for (int i = 0; i <= n; ++i)
+				if (i != i_max)
+					pc = pc + p[i].x;
+			pc = (1.0 / n) * pc;
+
+			// odbicie
+			solution p_odb(pc + alpha * (pc - p[i_max].x));
+			p_odb.fit_fun(ff, ud1, ud2);
+
+			if (m2d(p_odb.y) < m2d(p[i_min].y))
+			{
+				// ekspansja
+				solution p_e(pc + gamma * (p_odb.x - pc));
+				p_e.fit_fun(ff, ud1, ud2);
+				if (m2d(p_e.y) < m2d(p_odb.y))
+					p[i_max] = p_e;
+				else
+					p[i_max] = p_odb;
+			}
+			else if (m2d(p[i_min].y) <= m2d(p_odb.y) && m2d(p_odb.y) < m2d(p[i_max].y))
+			{
+				p[i_max] = p_odb;
+			}
+			else
+			{
+				// zawezenie
+				solution p_z(pc + beta * (p[i_max].x - pc));
+				p_z.fit_fun(ff, ud1, ud2);
+				if (m2d(p_z.y) >= m2d(p[i_max].y))
+				{
+					// redukcja wzgledem wierzcholka najlepszego
+					for (int i = 0; i <= n; ++i)
+						if (i != i_min)
+						{
+							p[i] = solution(p[i_min].x + delta * (p[i].x - p[i_min].x));
+							p[i].fit_fun(ff, ud1, ud2);
+						}
+				}
+				else
+					p[i_max] = p_z;
+			}
+
+			if (solution::f_calls > Nmax)
+			{
+				delete[] p;
+				throw string("Przekroczono maksymalna liczbe wywolan funkcji celu");
+			}
+
+			// warunek stopu: max ||p_min - p_i|| < epsilon
+			i_min = 0;
+			for (int i = 1; i <= n; ++i)
+				if (m2d(p[i].y) < m2d(p[i_min].y)) i_min = i;
+			double d_max = 0.0;
+			for (int i = 0; i <= n; ++i)
+				d_max = max(d_max, norm(p[i_min].x - p[i].x));
+			if (d_max < epsilon)
+				break;
+		}
+
+		Xopt = p[i_min];
+		Xopt.flag = 0;
+		delete[] p;
 		return Xopt;
 	}
 	catch (string ex_info)
